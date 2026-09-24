@@ -1,0 +1,433 @@
+﻿{% extends "base.html" %}
+
+{% block title %}
+SIGNAL — AI Resume Intelligence
+{% endblock %}
+
+
+{% block content %}
+
+<section class="hero">
+
+    <div class="container">
+
+        <div class="hero-kicker animate-in">
+            AI-ASSISTED CANDIDATE INTELLIGENCE
+        </div>
+
+        <h1 class="animate-in delay-1">
+            Find the signal
+            <span class="accent">
+                inside the resume.
+            </span>
+        </h1>
+
+        <p class="animate-in delay-2">
+            Transform unstructured candidate documents into a transparent
+            ranking using textual relevance, technical skills and experience.
+        </p>
+
+    </div>
+
+</section>
+
+
+<section class="pb-5">
+
+    <div class="container">
+
+        <div class="glass-card form-card animate-in delay-3">
+
+            <form
+                action="/rank"
+                method="POST"
+                enctype="multipart/form-data"
+            >
+
+                <div class="row g-4">
+
+                    <div class="col-lg-8">
+
+                        <label class="form-label">
+                            Job description
+                        </label>
+
+                        <textarea
+                            name="job_description"
+                            class="form-control"
+                            rows="13"
+                            required
+                            placeholder="Paste the complete job description..."
+                        ></textarea>
+
+                    </div>
+
+
+                    <div class="col-lg-4">
+
+                        <div class="mb-4">
+
+                            <label class="form-label">
+                                Required skills
+                            </label>
+
+                            <input
+                                type="text"
+                                name="required_skills"
+                                class="form-control"
+                                placeholder="Python, SQL, Machine Learning"
+                            >
+
+                            <div class="form-text">
+                                Skills required for the role.
+                            </div>
+
+                        </div>
+
+
+                        <div class="mb-4">
+
+                            <label class="form-label">
+                                Preferred skills
+                            </label>
+
+                            <input
+                                type="text"
+                                name="preferred_skills"
+                                class="form-control"
+                                placeholder="Docker, AWS, Git"
+                            >
+
+                        </div>
+
+
+                        <div class="mb-4">
+
+                            <label class="form-label">
+                                Minimum experience
+                            </label>
+
+                            <input
+                                type="number"
+                                name="min_experience"
+                                class="form-control"
+                                min="0"
+                                max="50"
+                                step=".5"
+                                value="0"
+                            >
+
+                        </div>
+
+
+                        <div>
+
+                            <label class="form-label">
+                                Resume PDFs
+                            </label>
+
+                            <input
+                                type="file"
+                                name="resumes"
+                                class="form-control"
+                                accept=".pdf"
+                                multiple
+                                required
+                            >
+
+                            <div class="form-text">
+                                Upload one or multiple candidate PDFs.
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mt-5">
+
+                    <div>
+
+                        <strong>
+                            Transparent scoring
+                        </strong>
+
+                        <div class="form-text">
+                            Relevance 50% · Required 30% ·
+                            Preferred 10% · Experience 10%
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        type="submit"
+                        class="btn btn-acid"
+                    >
+                        Analyze & Rank →
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="pb-5">
+
+    <div class="container">
+
+        <div class="row g-3">
+
+            <div class="col-md-3">
+
+                <div class="glass-card metric-card">
+
+                    <div class="metric-number">
+                        50%
+                    </div>
+
+                    <div class="metric-label">
+                        Resume relevance
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="glass-card metric-card">
+
+                    <div class="metric-number">
+                        30%
+                    </div>
+
+                    <div class="metric-label">
+                        Required skills
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="glass-card metric-card">
+
+                    <div class="metric-number">
+                        10%
+                    </div>
+
+                    <div class="metric-label">
+                        Preferred skills
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-3">
+
+                <div class="glass-card metric-card">
+
+                    <div class="metric-number">
+                        10%
+                    </div>
+
+                    <div class="metric-label">
+                        Experience
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="py-5">
+
+    <div class="container">
+
+        <div class="mb-4">
+
+            <div class="hero-kicker">
+                PIPELINE
+            </div>
+
+            <h2 class="section-title mt-3">
+                From document to decision support.
+            </h2>
+
+        </div>
+
+
+        <div class="pipeline">
+
+            <div class="pipeline-step">
+
+                <div class="pipeline-number">
+                    01
+                </div>
+
+                <div class="pipeline-title">
+                    PDF
+                </div>
+
+                <div class="pipeline-copy">
+                    Candidate document ingestion.
+                </div>
+
+            </div>
+
+
+            <div class="pipeline-step">
+
+                <div class="pipeline-number">
+                    02
+                </div>
+
+                <div class="pipeline-title">
+                    EXTRACT
+                </div>
+
+                <div class="pipeline-copy">
+                    Text extraction with PyMuPDF.
+                </div>
+
+            </div>
+
+
+            <div class="pipeline-step">
+
+                <div class="pipeline-number">
+                    03
+                </div>
+
+                <div class="pipeline-title">
+                    NLP
+                </div>
+
+                <div class="pipeline-copy">
+                    Text normalization and processing.
+                </div>
+
+            </div>
+
+
+            <div class="pipeline-step">
+
+                <div class="pipeline-number">
+                    04
+                </div>
+
+                <div class="pipeline-title">
+                    RELEVANCE
+                </div>
+
+                <div class="pipeline-copy">
+                    TF-IDF and cosine similarity.
+                </div>
+
+            </div>
+
+
+            <div class="pipeline-step">
+
+                <div class="pipeline-number">
+                    05
+                </div>
+
+                <div class="pipeline-title">
+                    SKILLS
+                </div>
+
+                <div class="pipeline-copy">
+                    Required and preferred matching.
+                </div>
+
+            </div>
+
+
+            <div class="pipeline-step">
+
+                <div class="pipeline-number">
+                    06
+                </div>
+
+                <div class="pipeline-title">
+                    RANK
+                </div>
+
+                <div class="pipeline-copy">
+                    Explainable composite score.
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<section class="pb-5">
+
+    <div class="container">
+
+        <div class="glass-card p-4 p-md-5">
+
+            <div class="row align-items-center g-4">
+
+                <div class="col-lg-8">
+
+                    <div class="hero-kicker">
+                        RESPONSIBLE AI
+                    </div>
+
+                    <h3 class="fw-bold mt-3">
+                        A ranking is a signal — not a hiring decision.
+                    </h3>
+
+                    <p class="text-muted mb-0">
+                        SIGNAL evaluates information contained in submitted
+                        documents and the criteria configured for the role.
+                        Human review remains an essential part of the process.
+                    </p>
+
+                </div>
+
+
+                <div class="col-lg-4 text-lg-end">
+
+                    <span class="score-pill">
+                        HUMAN REVIEW REQUIRED
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}

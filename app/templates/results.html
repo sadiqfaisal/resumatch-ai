@@ -1,0 +1,280 @@
+﻿{% extends "base.html" %}
+
+{% block title %}
+SIGNAL — Ranking Results
+{% endblock %}
+
+
+{% block content %}
+
+<section class="hero">
+
+    <div class="container">
+
+        <div class="hero-kicker animate-in">
+            ANALYSIS COMPLETE
+        </div>
+
+        <h1 class="animate-in delay-1">
+            Candidate
+            <span class="accent">
+                signal.
+            </span>
+        </h1>
+
+        <p class="animate-in delay-2">
+            Explore the ranking and inspect the individual signals
+            contributing to each candidate score.
+        </p>
+
+    </div>
+
+</section>
+
+
+<section class="pb-5">
+
+    <div class="container">
+
+        <div class="row g-3 mb-4">
+
+            <div class="col-md-4">
+
+                <div class="glass-card metric-card">
+
+                    <div class="metric-number">
+                        {{ results|length }}
+                    </div>
+
+                    <div class="metric-label">
+                        Candidates analyzed
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-4">
+
+                <div class="glass-card metric-card">
+
+                    <div class="metric-number">
+                        {{ "%.0f"|format(results[0].final_score * 100) }}%
+                    </div>
+
+                    <div class="metric-label">
+                        Highest composite score
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-md-4">
+
+                <div class="glass-card metric-card">
+
+                    <div class="metric-number">
+                        4
+                    </div>
+
+                    <div class="metric-label">
+                        Scoring dimensions
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="glass-card p-3 p-md-4">
+
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+
+                <div>
+
+                    <div class="hero-kicker">
+                        LEADERBOARD
+                    </div>
+
+                    <h2 class="h3 fw-bold mt-3 mb-0">
+                        Candidate ranking
+                    </h2>
+
+                </div>
+
+
+                <div class="d-flex gap-2">
+
+                    <a
+                        href="/download-report"
+                        class="btn btn-acid"
+                    >
+                        Download Report
+                    </a>
+
+                    <a
+                        href="/"
+                        class="btn btn-primary"
+                    >
+                        New Analysis
+                    </a>
+
+                </div>
+
+            </div>
+
+
+            <div class="table-responsive">
+
+                <table class="table align-middle">
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                Rank
+                            </th>
+
+                            <th>
+                                Candidate
+                            </th>
+
+                            <th>
+                                Final
+                            </th>
+
+                            <th>
+                                Relevance
+                            </th>
+
+                            <th>
+                                Required
+                            </th>
+
+                            <th>
+                                Preferred
+                            </th>
+
+                            <th>
+                                Experience
+                            </th>
+
+                            <th>
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                    {% for candidate in results %}
+
+                        <tr class="rank-row">
+
+                            <td>
+
+                                <span class="
+                                    rank-badge
+                                    {% if candidate.rank == 1 %}
+                                        first
+                                    {% elif candidate.rank == 2 %}
+                                        second
+                                    {% elif candidate.rank == 3 %}
+                                        third
+                                    {% endif %}
+                                ">
+                                    {{ candidate.rank }}
+                                </span>
+
+                            </td>
+
+
+                            <td>
+
+                                <div class="fw-bold">
+                                    {{ candidate.candidate_name }}
+                                </div>
+
+                                <div class="small text-muted">
+                                    {{ candidate.filename }}
+                                </div>
+
+                            </td>
+
+
+                            <td>
+
+                                <span class="
+                                    score-pill
+                                    {% if candidate.final_score >= .75 %}
+                                        high
+                                    {% elif candidate.final_score >= .50 %}
+                                        medium
+                                    {% else %}
+                                        low
+                                    {% endif %}
+                                ">
+
+                                    {{ "%.1f"|format(candidate.final_score * 100) }}%
+
+                                </span>
+
+                            </td>
+
+
+                            <td>
+                                {{ "%.0f"|format(candidate.tfidf_similarity * 100) }}%
+                            </td>
+
+
+                            <td>
+                                {{ "%.0f"|format(candidate.required_skill_score * 100) }}%
+                            </td>
+
+
+                            <td>
+                                {{ "%.0f"|format(candidate.preferred_skill_score * 100) }}%
+                            </td>
+
+
+                            <td>
+                                {{ "%.0f"|format(candidate.experience_score * 100) }}%
+                            </td>
+
+
+                            <td>
+
+                                <a
+                                    href="/candidate/{{ candidate.rank }}"
+                                    class="btn btn-sm btn-primary"
+                                >
+                                    Inspect →
+                                </a>
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}

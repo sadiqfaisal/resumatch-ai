@@ -1,0 +1,18 @@
+Machine Learning Intern
+
+We are looking for a Machine Learning Intern to support
+development of machine learning and data analysis solutions.
+
+Responsibilities:
+
+Build and evaluate machine learning models.
+
+Prepare and analyze datasets.
+
+Develop Python-based data processing workflows.
+
+Work with SQL databases.
+
+Collaborate with engineers and data scientists.
+
+Create APIs and analytical tools.

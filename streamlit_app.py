@@ -1,0 +1,2102 @@
+import html
+import re
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+from app.pdf_parser import extract_text_from_bytes
+from app.skills import calculate_skill_match
+from app.scoring import (
+    calculate_experience_score,
+    extract_years_of_experience,
+)
+
+
+# ============================================================
+# PAGE CONFIG
+# ============================================================
+
+st.set_page_config(
+    page_title="ResuMatch AI",
+    page_icon="✦",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+
+# ============================================================
+# DESIGN SYSTEM
+# ============================================================
+
+st.html(
+    '''<style>
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap');
+
+
+/* ==========================================================
+   GLOBAL
+   ========================================================== */
+
+html,
+body,
+[class*="css"] {
+    font-family: "DM Sans", sans-serif;
+}
+
+.stApp {
+    background:
+        radial-gradient(
+            circle at 8% 5%,
+            rgba(236, 91, 68, 0.08),
+            transparent 26%
+        ),
+        radial-gradient(
+            circle at 92% 12%,
+            rgba(246, 190, 80, 0.10),
+            transparent 24%
+        ),
+        #f5f1e9;
+
+    color: #171717;
+}
+
+[data-testid="stAppViewContainer"] {
+    background: #f5f1e9 !important;
+}
+
+[data-testid="stMain"] {
+    background: #f5f1e9 !important;
+}
+
+[data-testid="stMainBlockContainer"] {
+    background: transparent !important;
+    color: #171717 !important;
+    max-width: 1450px;
+    padding-top: 2rem;
+    padding-bottom: 4rem;
+}
+
+.main .block-container {
+    background: transparent !important;
+    color: #171717 !important;
+}
+
+
+/*
+   IMPORTANT:
+   Do NOT use `.stApp div { color: inherit; }`.
+   That broad selector can interfere with Streamlit widgets,
+   dataframe rendering and internal DOM elements.
+*/
+
+.stApp p,
+.stApp span,
+.stApp label,
+.stApp li,
+.stApp td,
+.stApp th {
+    color: inherit;
+}
+
+
+/* ==========================================================
+   SIDEBAR
+   ========================================================== */
+
+[data-testid="stSidebar"] {
+    background: #171717 !important;
+    border-right: 1px solid rgba(255,255,255,0.08);
+}
+
+[data-testid="stSidebar"] > div:first-child {
+    background: #171717 !important;
+}
+
+[data-testid="stSidebar"] * {
+    color: #f8f4eb !important;
+}
+
+.sidebar-brand {
+    padding: 8px 4px 26px 4px;
+}
+
+.sidebar-mark {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ef674e;
+    color: white !important;
+    font-size: 24px;
+    font-weight: 700;
+    box-shadow: 0 10px 30px rgba(239,103,78,0.25);
+    margin-bottom: 14px;
+}
+
+.sidebar-title {
+    font-family: "Playfair Display", serif;
+    font-size: 25px;
+    line-height: 1.05;
+    color: #fffaf1 !important;
+    margin-bottom: 6px;
+}
+
+.sidebar-subtitle {
+    color: #a8a39b !important;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.sidebar-section {
+    color: #8f8a82 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 28px;
+    margin-bottom: 10px;
+}
+
+.sidebar-info {
+    padding: 13px 14px;
+    border: 1px solid rgba(255,255,255,0.09);
+    background: rgba(255,255,255,0.045);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #c6c1b8 !important;
+}
+
+
+/* ==========================================================
+   TYPOGRAPHY
+   ========================================================== */
+
+.hero-eyebrow {
+    color: #d9573e !important;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    font-size: 11px;
+    margin-bottom: 8px;
+}
+
+.hero-title {
+    font-family: "Playfair Display", serif;
+    font-size: clamp(42px, 6vw, 76px);
+    line-height: 0.96;
+    letter-spacing: -0.045em;
+    color: #171717 !important;
+    margin: 0;
+}
+
+.hero-title em {
+    color: #d9573e !important;
+    font-style: normal;
+}
+
+.hero-copy {
+    color: #68645d !important;
+    max-width: 720px;
+    font-size: 16px;
+    line-height: 1.7;
+    margin-top: 18px;
+}
+
+.section-title {
+    font-family: "Playfair Display", serif;
+    font-size: 29px;
+    color: #171717 !important;
+    margin-bottom: 4px;
+}
+
+.section-copy {
+    color: #777168 !important;
+    font-size: 13px;
+    margin-bottom: 18px;
+}
+
+
+/* ==========================================================
+   HERO
+   ========================================================== */
+
+.hero-line {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        #171717 0%,
+        #171717 30%,
+        rgba(23,23,23,0.08) 100%
+    );
+    margin: 30px 0 32px 0;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 11px;
+    background: #fffdf8;
+    border: 1px solid #ded8ce;
+    border-radius: 999px;
+    color: #565149 !important;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 5px;
+    margin-bottom: 5px;
+}
+
+.dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ef674e;
+    margin-right: 2px;
+}
+
+
+/* ==========================================================
+   CARDS
+   ========================================================== */
+
+.card {
+    background: #fffdf8;
+    border: 1px solid #ded8ce;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 14px 45px rgba(36, 30, 22, 0.06);
+}
+
+.card-dark {
+    background: #171717;
+    color: #fffaf1 !important;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 18px 50px rgba(23,23,23,0.12);
+}
+
+.card-dark * {
+    color: #fffaf1 !important;
+}
+
+.card-accent {
+    background: #ef674e;
+    color: white !important;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 18px 50px rgba(239,103,78,0.18);
+}
+
+.card-accent * {
+    color: white !important;
+}
+
+
+/* ==========================================================
+   INPUTS
+   ========================================================== */
+
+.stTextArea textarea,
+.stTextInput input,
+.stNumberInput input {
+    background: #fffdf8 !important;
+    color: #171717 !important;
+    border: 1px solid #d7d0c5 !important;
+    border-radius: 13px !important;
+    font-size: 14px !important;
+}
+
+.stTextArea textarea:focus,
+.stTextInput input:focus,
+.stNumberInput input:focus {
+    border-color: #ef674e !important;
+    box-shadow: 0 0 0 2px rgba(239,103,78,0.12) !important;
+}
+
+.stTextArea textarea::placeholder,
+.stTextInput input::placeholder {
+    color: #999187 !important;
+}
+
+.stTextArea label,
+.stTextInput label,
+.stNumberInput label,
+[data-testid="stFileUploader"] label {
+    color: #35312c !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+}
+
+
+/* ==========================================================
+   FILE UPLOADER
+   ========================================================== */
+
+[data-testid="stFileUploader"] {
+    background: #fffdf8 !important;
+    border: 1px dashed #cfc6ba !important;
+    border-radius: 17px !important;
+    padding: 7px !important;
+}
+
+[data-testid="stFileUploader"] section {
+    background: #fffdf8 !important;
+}
+
+[data-testid="stFileUploader"] small {
+    color: #777168 !important;
+}
+
+[data-testid="stFileUploader"] button {
+    background: #171717 !important;
+    color: white !important;
+    border: none !important;
+}
+
+
+/* ==========================================================
+   BUTTONS
+   ========================================================== */
+
+.stButton > button,
+.stDownloadButton > button {
+    background: #171717 !important;
+    color: #fffdf8 !important;
+    border: 1px solid #171717 !important;
+    border-radius: 12px !important;
+    padding: 0.65rem 1.1rem !important;
+    font-weight: 700 !important;
+    transition: all 0.22s ease !important;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {
+    background: #ef674e !important;
+    border-color: #ef674e !important;
+    color: white !important;
+    transform: translateY(-2px);
+    box-shadow: 0 9px 24px rgba(239,103,78,0.2);
+}
+
+.primary-action button {
+    background: #ef674e !important;
+    border-color: #ef674e !important;
+    font-size: 15px !important;
+    min-height: 50px !important;
+}
+
+.primary-action button:hover {
+    background: #d9573e !important;
+    border-color: #d9573e !important;
+}
+
+
+/* ==========================================================
+   METRICS
+   ========================================================== */
+
+[data-testid="stMetric"] {
+    background: #fffdf8 !important;
+    border: 1px solid #ded8ce !important;
+    border-radius: 16px !important;
+    padding: 18px !important;
+    box-shadow: 0 9px 30px rgba(36,30,22,0.045);
+}
+
+[data-testid="stMetricLabel"] {
+    color: #777168 !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: #171717 !important;
+    font-family: "Playfair Display", serif !important;
+}
+
+
+/* ==========================================================
+   TABS
+   ========================================================== */
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    background: transparent;
+}
+
+.stTabs [data-baseweb="tab"] {
+    color: #777168 !important;
+    background: transparent !important;
+    border-radius: 10px;
+    padding: 8px 14px;
+}
+
+.stTabs [aria-selected="true"] {
+    color: #171717 !important;
+    background: #fffdf8 !important;
+    box-shadow: 0 4px 18px rgba(36,30,22,0.05);
+}
+
+
+/* ==========================================================
+   DATAFRAME
+   ========================================================== */
+
+[data-testid="stDataFrame"] {
+    border: 1px solid #ded8ce !important;
+    border-radius: 15px !important;
+    overflow: hidden;
+    background: #fffdf8 !important;
+}
+
+
+/* ==========================================================
+   EXPANDERS / ALERTS
+   ========================================================== */
+
+[data-testid="stExpander"] {
+    background: #fffdf8 !important;
+    border: 1px solid #ded8ce !important;
+    border-radius: 15px !important;
+}
+
+.stAlert {
+    border-radius: 13px !important;
+}
+
+
+/* ==========================================================
+   SPINNER / DIVIDER
+   ========================================================== */
+
+.stSpinner > div {
+    border-top-color: #ef674e !important;
+}
+
+hr {
+    border-color: #ded8ce !important;
+}
+
+
+/* ==========================================================
+   ANIMATION
+   ========================================================== */
+
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate {
+    animation: rise 0.55s ease-out both;
+}
+
+.delay-1 {
+    animation-delay: 0.08s;
+}
+
+.delay-2 {
+    animation-delay: 0.16s;
+}
+
+.delay-3 {
+    animation-delay: 0.24s;
+}
+
+
+/* ==========================================================
+   FOOTER
+   ========================================================== */
+
+.footer {
+    margin-top: 60px;
+    padding-top: 22px;
+    border-top: 1px solid #ded8ce;
+    color: #8a847b !important;
+    font-size: 11px;
+    line-height: 1.6;
+    text-align: center;
+}
+
+</style>'''
+)
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def clean_skill_list(value):
+    if not value:
+        return []
+
+    return [
+        item.strip()
+        for item in re.split(r",|\n", value)
+        if item.strip()
+    ]
+
+def format_percent(value):
+    """Convert a 0-1 score into a percentage string."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = 0.0
+
+    number = max(0.0, min(1.0, number))
+
+    return f"{number * 100:.1f}%"
+
+
+def numeric_value(value, default=0.0):
+    """
+    Safely convert scoring output into a float.
+
+    Handles:
+    - int
+    - float
+    - strings
+    - NumPy scalar values
+    - single/multiple item lists
+    - tuples
+    """
+
+    if value is None:
+        return float(default)
+
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return float(default)
+
+        for item in value:
+            try:
+                return float(item)
+            except (TypeError, ValueError):
+                continue
+
+        return float(default)
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def normalize_for_similarity(text):
+    """
+    Prepare text for TF-IDF without destroying useful technical terms.
+    """
+
+    if not text:
+        return ""
+
+    text = str(text).lower()
+
+    # Preserve useful characters inside technical terms.
+    text = text.replace("c++", " cpp ")
+    text = text.replace("c#", " csharp ")
+    text = text.replace(".net", " dotnet ")
+
+    # Keep letters, numbers, #, +, -, ., slash.
+    text = re.sub(r"[^a-z0-9+#./_-]+", " ", text)
+
+    # Normalize whitespace.
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+
+def calculate_resume_relevance(job_text, resume_text):
+    """
+    Calculate TF-IDF cosine similarity between job description
+    and resume.
+
+    This implementation lives here intentionally so the Streamlit
+    application has one predictable relevance calculation.
+    """
+
+    job = normalize_for_similarity(job_text)
+    resume = normalize_for_similarity(resume_text)
+
+    if not job or not resume:
+        return 0.0
+
+    if job == resume:
+        return 1.0
+
+    try:
+        vectorizer = TfidfVectorizer(
+            lowercase=True,
+            stop_words="english",
+            ngram_range=(1, 2),
+            min_df=1,
+            sublinear_tf=True,
+        )
+
+        matrix = vectorizer.fit_transform(
+            [job, resume]
+        )
+
+        similarity = cosine_similarity(
+            matrix[0:1],
+            matrix[1:2],
+        )[0][0]
+
+        return max(
+            0.0,
+            min(1.0, float(similarity)),
+        )
+
+    except ValueError:
+        return 0.0
+
+
+def safe_list(value):
+    """Ensure scoring output is always a list."""
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+
+    return []
+
+
+def escape_items(items):
+    """Escape candidate-controlled text before inserting into HTML."""
+    return [
+        html.escape(str(item))
+        for item in safe_list(items)
+    ]
+
+
+def tag_html(items):
+    """
+    Generate skill pills as one complete HTML fragment.
+    """
+
+    clean_items = escape_items(items)
+
+    if not clean_items:
+        return (
+            '<span class="pill">'
+            'None detected'
+            '</span>'
+        )
+
+    return "".join(
+        f'<span class="pill">{item}</span>'
+        for item in clean_items
+    )
+
+
+def score_candidate(
+    job_text,
+    required,
+    preferred,
+    min_experience,
+    uploaded_file,
+):
+    """
+    Score one uploaded resume.
+
+    Final score:
+
+    50% text relevance
+    30% required skills
+    10% preferred skills
+    10% experience
+    """
+
+    # --------------------------------------------------------
+    # EXTRACT RESUME TEXT
+    # --------------------------------------------------------
+
+    raw = uploaded_file.getvalue()
+
+    resume_text = extract_text_from_bytes(raw)
+
+    if not resume_text or not resume_text.strip():
+        raise ValueError(
+            f"{uploaded_file.name} does not contain readable text."
+        )
+
+    # --------------------------------------------------------
+    # SKILL MATCHING
+    # --------------------------------------------------------
+
+    skill_match = calculate_skill_match(
+        resume_text,
+        required,
+        preferred,
+    )
+
+    matched_required = safe_list(
+        skill_match.get("matched_required", [])
+    )
+
+    missing_required = safe_list(
+        skill_match.get("missing_required", [])
+    )
+
+    matched_preferred = safe_list(
+        skill_match.get("matched_preferred", [])
+    )
+
+    missing_preferred = safe_list(
+        skill_match.get("missing_preferred", [])
+    )
+
+    resume_skills = safe_list(
+        skill_match.get("resume_skills", [])
+    )
+
+    # --------------------------------------------------------
+    # REQUIRED SKILLS SCORE
+    # --------------------------------------------------------
+
+    if required:
+        required_score = (
+            len(matched_required) /
+            len(required)
+        )
+    else:
+        required_score = 0.0
+
+    required_score = numeric_value(
+        required_score
+    )
+
+    required_score = max(
+        0.0,
+        min(1.0, required_score),
+    )
+
+    # --------------------------------------------------------
+    # PREFERRED SKILLS SCORE
+    # --------------------------------------------------------
+
+    if preferred:
+        preferred_score = (
+            len(matched_preferred) /
+            len(preferred)
+        )
+    else:
+        preferred_score = 0.0
+
+    preferred_score = numeric_value(
+        preferred_score
+    )
+
+    preferred_score = max(
+        0.0,
+        min(1.0, preferred_score),
+    )
+
+    # --------------------------------------------------------
+    # TEXT RELEVANCE
+    # --------------------------------------------------------
+
+    tfidf = calculate_resume_relevance(
+        job_text,
+        resume_text,
+    )
+
+    tfidf = numeric_value(tfidf)
+
+    tfidf = max(
+        0.0,
+        min(1.0, tfidf),
+    )
+
+    # --------------------------------------------------------
+    # EXPERIENCE
+    # --------------------------------------------------------
+
+    experience_years = numeric_value(
+        extract_years_of_experience(
+            resume_text
+        )
+    )
+
+    experience_years = max(
+        0.0,
+        experience_years,
+    )
+
+    experience_score = numeric_value(
+        calculate_experience_score(
+            experience_years,
+            min_experience,
+        )
+    )
+
+    experience_score = max(
+        0.0,
+        min(1.0, experience_score),
+    )
+
+    # --------------------------------------------------------
+    # FINAL SCORE
+    # --------------------------------------------------------
+
+    final_score = (
+        (tfidf * 0.50)
+        + (required_score * 0.30)
+        + (preferred_score * 0.10)
+        + (experience_score * 0.10)
+    )
+
+    final_score = numeric_value(
+        final_score
+    )
+
+    final_score = max(
+        0.0,
+        min(1.0, final_score),
+    )
+
+    # --------------------------------------------------------
+    # RESULT
+    # --------------------------------------------------------
+
+    candidate_name = Path(
+        uploaded_file.name
+    ).stem.replace("_", " ")
+
+    return {
+        "Candidate": candidate_name,
+        "Resume": uploaded_file.name,
+        "Final Score": final_score,
+        "TF-IDF Similarity": tfidf,
+        "Required Skills": required_score,
+        "Preferred Skills": preferred_score,
+        "Experience Score": experience_score,
+        "Experience Years": experience_years,
+        "Matched Required": matched_required,
+        "Missing Required": missing_required,
+        "Matched Preferred": matched_preferred,
+        "Missing Preferred": missing_preferred,
+        "Resume Skills": resume_skills,
+        "Resume Text": resume_text,
+    }
+
+
+def create_report(results):
+    """Create the downloadable HR analysis report."""
+
+    rows = []
+
+    for rank, item in enumerate(
+        results,
+        start=1,
+    ):
+        rows.append(
+            {
+                "Rank": rank,
+                "Candidate": item["Candidate"],
+                "Resume": item["Resume"],
+                "Final Score": round(
+                    item["Final Score"] * 100,
+                    2,
+                ),
+                "TF-IDF Similarity": round(
+                    item["TF-IDF Similarity"] * 100,
+                    2,
+                ),
+                "Required Skills": round(
+                    item["Required Skills"] * 100,
+                    2,
+                ),
+                "Preferred Skills": round(
+                    item["Preferred Skills"] * 100,
+                    2,
+                ),
+                "Experience Score": round(
+                    item["Experience Score"] * 100,
+                    2,
+                ),
+                "Experience Years": item[
+                    "Experience Years"
+                ],
+                "Matched Required": ", ".join(
+                    map(
+                        str,
+                        item["Matched Required"],
+                    )
+                ),
+                "Missing Required": ", ".join(
+                    map(
+                        str,
+                        item["Missing Required"],
+                    )
+                ),
+                "Matched Preferred": ", ".join(
+                    map(
+                        str,
+                        item["Matched Preferred"],
+                    )
+                ),
+                "Missing Preferred": ", ".join(
+                    map(
+                        str,
+                        item["Missing Preferred"],
+                    )
+                ),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+# ============================================================
+# SESSION STATE
+# ============================================================
+
+if "results" not in st.session_state:
+    st.session_state.results = None
+
+if "job_text" not in st.session_state:
+    st.session_state.job_text = ""
+
+if "analysis_done" not in st.session_state:
+    st.session_state.analysis_done = False
+
+
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.html(
+    '''<div class="sidebar-brand">
+    <div class="sidebar-mark">✦</div>
+
+    <div class="sidebar-title">
+        ResuMatch<br>AI
+    </div>
+
+    <div class="sidebar-subtitle">
+        Intelligent candidate screening for structured,
+        explainable hiring workflows.
+    </div>
+</div>'''
+)
+
+    st.markdown(
+        '<div class="sidebar-section">How it works</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.html(
+    '''<div class="sidebar-info">
+    <b>01</b> &nbsp; Read resume PDFs
+</div>
+
+<div class="sidebar-info">
+    <b>02</b> &nbsp; Extract candidate signals
+</div>
+
+<div class="sidebar-info">
+    <b>03</b> &nbsp; Compare job relevance
+</div>
+
+<div class="sidebar-info">
+    <b>04</b> &nbsp; Produce ranked results
+</div>'''
+)
+
+    st.markdown(
+        '<div class="sidebar-section">Scoring model</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.html(
+    '''<div class="sidebar-info">
+    <b>50%</b> semantic text relevance
+</div>
+
+<div class="sidebar-info">
+    <b>30%</b> required skills
+</div>
+
+<div class="sidebar-info">
+    <b>10%</b> preferred skills
+</div>
+
+<div class="sidebar-info">
+    <b>10%</b> experience
+</div>'''
+)
+
+    st.markdown(
+        '<div class="sidebar-section">Technology</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.html(
+    '''<div class="sidebar-info">
+    Python · Streamlit
+</div>
+
+<div class="sidebar-info">
+    spaCy · scikit-learn · PyMuPDF
+</div>
+
+<div class="sidebar-info">
+    Pandas · NumPy
+</div>'''
+)
+
+    st.markdown(
+        '<div class="sidebar-section">Responsible use</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.html(
+    '''<div class="sidebar-info">
+    This tool supports recruiter review.
+    It should not be used as the sole basis
+    for employment decisions.
+</div>'''
+)
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+st.html(
+    '''<div class="animate">
+
+    <div class="hero-eyebrow">
+        Candidate intelligence · Resume analysis
+    </div>
+
+    <div class="hero-title">
+        Find the signal<br>
+        <em>inside the resume.</em>
+    </div>
+
+    <div class="hero-copy">
+        Turn a job description and a stack of resumes into a
+        transparent candidate comparison. ResuMatch combines
+        text relevance, skills and experience into one
+        explainable ranking workflow.
+    </div>
+
+    <div style="margin-top:18px;">
+        <span class="pill">
+            <span class="dot"></span>
+            AI-assisted screening
+        </span>
+
+        <span class="pill">
+            Explainable scoring
+        </span>
+
+        <span class="pill">
+            PDF intelligence
+        </span>
+    </div>
+
+</div>
+
+<div class="hero-line"></div>'''
+)
+
+
+# ============================================================
+# INPUT WORKSPACE
+# ============================================================
+
+if not st.session_state.analysis_done:
+
+    st.html(
+    '''<div class="section-title">
+    Build your screening brief
+</div>
+
+<div class="section-copy">
+    Define what the role needs. The engine will use the same
+    criteria consistently across every uploaded candidate.
+</div>'''
+)
+
+    left, right = st.columns(
+        [1.45, 0.75],
+        gap="large",
+    )
+
+    with left:
+
+        job_text = st.text_area(
+            "Job description",
+            value=st.session_state.job_text,
+            height=290,
+            placeholder=(
+                "Paste the complete job description here...\n\n"
+                "Example:\n"
+                "We are looking for a Machine Learning Intern..."
+            ),
+        )
+
+        st.markdown(
+            "<div style='height:8px'></div>",
+            unsafe_allow_html=True,
+        )
+
+        required_text = st.text_input(
+            "Required skills",
+            placeholder=(
+                "Python, SQL, Machine Learning, Pandas, NumPy"
+            ),
+        )
+
+        preferred_text = st.text_input(
+            "Preferred skills",
+            placeholder=(
+                "Git, Docker, AWS, Flask, REST API"
+            ),
+        )
+
+    with right:
+
+        st.html(
+            """
+            <div class="card animate delay-1">
+
+                <div class="hero-eyebrow">
+                    Role settings
+                </div>
+
+                <div style="
+                    font-family:'Playfair Display',serif;
+                    font-size:25px;
+                    color:#171717;
+                    margin-bottom:10px;
+                ">
+                    Hiring profile
+                </div>
+
+                <div style="
+                    color:#777168;
+                    font-size:13px;
+                    line-height:1.6;
+                ">
+                    Required skills carry more weight than preferred
+                    skills, while experience acts as a supporting signal.
+                </div>
+
+            </div>
+            """
+        )
+
+        st.markdown(
+            "<div style='height:14px'></div>",
+            unsafe_allow_html=True,
+        )
+
+        min_experience = st.number_input(
+            "Minimum experience (years)",
+            min_value=0.0,
+            max_value=50.0,
+            value=1.0,
+            step=0.5,
+        )
+
+        uploaded_files = st.file_uploader(
+            "Candidate resumes",
+            type=["pdf"],
+            accept_multiple_files=True,
+            help=(
+                "Upload one or more text-based PDF resumes."
+            ),
+        )
+
+        if uploaded_files:
+            count = len(uploaded_files)
+
+            st.success(
+                f"{count} resume"
+                f"{'s' if count != 1 else ''} ready."
+            )
+
+        st.markdown(
+            "<div style='height:5px'></div>",
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            '<div class="primary-action">',
+            unsafe_allow_html=True,
+        )
+
+        analyze = st.button(
+            "✦  Analyze & rank candidates",
+            use_container_width=True,
+        )
+
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    # --------------------------------------------------------
+    # ANALYSIS
+    # --------------------------------------------------------
+
+    if analyze:
+
+        required = clean_skill_list(
+            required_text
+        )
+
+        preferred = clean_skill_list(
+            preferred_text
+        )
+
+        if not job_text.strip():
+            st.error(
+                "Add a job description before starting the analysis."
+            )
+            st.stop()
+
+        if not uploaded_files:
+            st.error(
+                "Upload at least one PDF resume."
+            )
+            st.stop()
+
+        if not required:
+            st.warning(
+                "No required skills were entered. "
+                "The analysis will rely more heavily "
+                "on text relevance."
+            )
+
+        progress = st.progress(0)
+
+        status = st.empty()
+
+        results = []
+
+        for index, uploaded_file in enumerate(
+            uploaded_files
+        ):
+
+            status.markdown(
+                f"**Analyzing:** `{uploaded_file.name}`"
+            )
+
+            try:
+
+                result = score_candidate(
+                    job_text=job_text,
+                    required=required,
+                    preferred=preferred,
+                    min_experience=min_experience,
+                    uploaded_file=uploaded_file,
+                )
+
+                results.append(result)
+
+            except Exception as exc:
+
+                st.warning(
+                    f"Could not analyze "
+                    f"`{uploaded_file.name}`: {exc}"
+                )
+
+            progress.progress(
+                int(
+                    ((index + 1) / len(uploaded_files))
+                    * 100
+                )
+            )
+
+        status.empty()
+        progress.empty()
+
+        if not results:
+
+            st.error(
+                "No resumes could be analyzed. "
+                "Make sure the PDFs contain selectable text."
+            )
+
+            st.stop()
+
+        results.sort(
+            key=lambda item: item["Final Score"],
+            reverse=True,
+        )
+
+        st.session_state.results = results
+        st.session_state.job_text = job_text
+        st.session_state.analysis_done = True
+
+        st.rerun()
+
+
+# ============================================================
+# RESULTS
+# ============================================================
+
+else:
+
+    results = st.session_state.results
+
+    if not results:
+        st.session_state.analysis_done = False
+        st.rerun()
+
+    best = results[0]
+
+    report_df = create_report(results)
+
+    st.html(
+    '''<div class="hero-eyebrow">
+    Analysis complete
+</div>
+
+<div class="section-title">
+    Candidate intelligence report
+</div>
+
+<div class="section-copy">
+    Every score below is derived from the same job brief
+    and scoring model. Open a candidate to inspect
+    the reasoning.
+</div>'''
+)
+
+
+    # ========================================================
+    # SUMMARY METRICS
+    # ========================================================
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.metric(
+            "Candidates analyzed",
+            len(results),
+        )
+
+    with c2:
+        st.metric(
+            "Top match",
+            best["Candidate"],
+        )
+
+    with c3:
+        st.metric(
+            "Top score",
+            format_percent(
+                best["Final Score"]
+            ),
+        )
+
+    with c4:
+
+        avg_score = (
+            sum(
+                item["Final Score"]
+                for item in results
+            )
+            / len(results)
+        )
+
+        st.metric(
+            "Average score",
+            format_percent(avg_score),
+        )
+
+
+    st.markdown(
+        "<div style='height:25px'></div>",
+        unsafe_allow_html=True,
+    )
+
+
+    # ========================================================
+    # TOP CANDIDATE
+    # ========================================================
+
+    left, right = st.columns(
+        [1.15, 0.85],
+        gap="large",
+    )
+
+    with left:
+
+        st.html(
+            f"""
+            <div class="card-accent animate">
+
+                <div style="
+                    text-transform:uppercase;
+                    letter-spacing:.14em;
+                    font-size:10px;
+                    font-weight:700;
+                    opacity:.8;
+                ">
+                    Highest scoring profile
+                </div>
+
+                <div style="
+                    font-family:'Playfair Display',serif;
+                    font-size:39px;
+                    line-height:1.05;
+                    margin-top:10px;
+                ">
+                    {html.escape(best["Candidate"])}
+                </div>
+
+                <div style="
+                    margin-top:12px;
+                    font-size:14px;
+                    opacity:.9;
+                ">
+                    {html.escape(best["Resume"])}
+                </div>
+
+                <div style="
+                    font-family:'Playfair Display',serif;
+                    font-size:54px;
+                    margin-top:18px;
+                ">
+                    {format_percent(best["Final Score"])}
+                </div>
+
+                <div style="
+                    font-size:12px;
+                    opacity:.82;
+                ">
+                    composite relevance score
+                </div>
+
+            </div>
+            """
+        )
+
+    with right:
+
+        st.html(
+            """
+            <div class="card-dark animate delay-1">
+
+                <div style="
+                    text-transform:uppercase;
+                    letter-spacing:.14em;
+                    font-size:10px;
+                    color:#aaa39a !important;
+                    font-weight:700;
+                ">
+                    Model composition
+                </div>
+
+                <div style="
+                    font-family:'Playfair Display',serif;
+                    font-size:27px;
+                    margin-top:8px;
+                ">
+                    Explainable by design.
+                </div>
+
+                <div style="
+                    margin-top:16px;
+                    font-size:13px;
+                    line-height:2;
+                    color:#c9c2b8 !important;
+                ">
+                    <b style="color:#fff !important;">50%</b>
+                    text relevance<br>
+
+                    <b style="color:#fff !important;">30%</b>
+                    required skills<br>
+
+                    <b style="color:#fff !important;">10%</b>
+                    preferred skills<br>
+
+                    <b style="color:#fff !important;">10%</b>
+                    experience
+                </div>
+
+            </div>
+            """
+        )
+
+
+    st.markdown(
+        "<div style='height:28px'></div>",
+        unsafe_allow_html=True,
+    )
+
+
+    # ========================================================
+    # RANKING
+    # ========================================================
+
+    st.html(
+    '''<div class="section-title">
+    Ranking
+</div>
+
+<div class="section-copy">
+    Candidates are ordered by composite score.
+    Percentages represent model outputs, not hiring decisions.
+</div>'''
+)
+
+    display_df = report_df[
+        [
+            "Rank",
+            "Candidate",
+            "Final Score",
+            "TF-IDF Similarity",
+            "Required Skills",
+            "Preferred Skills",
+            "Experience Score",
+            "Experience Years",
+        ]
+    ].copy()
+
+    percentage_columns = [
+        "Final Score",
+        "TF-IDF Similarity",
+        "Required Skills",
+        "Preferred Skills",
+        "Experience Score",
+    ]
+
+    for column in percentage_columns:
+
+        display_df[column] = display_df[
+            column
+        ].map(
+            lambda value: f"{float(value):.1f}%"
+        )
+
+    display_df["Experience Years"] = (
+        display_df["Experience Years"]
+        .map(
+            lambda value: f"{float(value):.1f}"
+        )
+    )
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
+    st.markdown(
+        "<div style='height:24px'></div>",
+        unsafe_allow_html=True,
+    )
+
+
+    # ========================================================
+    # CANDIDATE DEEP DIVE
+    # ========================================================
+
+    st.html(
+    '''<div class="section-title">
+    Candidate deep dive
+</div>
+
+<div class="section-copy">
+    Inspect exactly which signals contributed to each score.
+</div>'''
+)
+
+    candidate_names = [
+        f"#{index + 1}  {candidate['Candidate']}"
+        for index, candidate in enumerate(results)
+    ]
+
+    selected_label = st.selectbox(
+        "Select candidate",
+        candidate_names,
+    )
+
+    selected_index = candidate_names.index(
+        selected_label
+    )
+
+    candidate = results[selected_index]
+
+
+    # ========================================================
+    # SCORE BREAKDOWN
+    # ========================================================
+
+    score_cols = st.columns(4)
+
+    score_data = [
+        (
+            "Text relevance",
+            candidate["TF-IDF Similarity"],
+        ),
+        (
+            "Required skills",
+            candidate["Required Skills"],
+        ),
+        (
+            "Preferred skills",
+            candidate["Preferred Skills"],
+        ),
+        (
+            "Experience",
+            candidate["Experience Score"],
+        ),
+    ]
+
+    for col, (label, value) in zip(
+        score_cols,
+        score_data,
+    ):
+
+        with col:
+
+            st.metric(
+                label,
+                format_percent(value),
+            )
+
+
+    st.markdown(
+        "<div style='height:12px'></div>",
+        unsafe_allow_html=True,
+    )
+
+
+    # ========================================================
+    # TABS
+    # ========================================================
+
+    tab1, tab2, tab3 = st.tabs(
+        [
+            "Skill match",
+            "Experience",
+            "Resume text",
+        ]
+    )
+
+
+    # ========================================================
+    # SKILL MATCH TAB
+    # ========================================================
+
+    with tab1:
+
+        skill_left, skill_right = st.columns(
+            2,
+            gap="large",
+        )
+
+        # ----------------------------------------------------
+        # REQUIRED
+        # ----------------------------------------------------
+
+        with skill_left:
+
+            matched_required_html = tag_html(
+                candidate["Matched Required"]
+            )
+
+            missing_required = safe_list(
+                candidate["Missing Required"]
+            )
+
+            if missing_required:
+
+                missing_html = "".join(
+                    f"""
+                    <span class="pill">
+                        {html.escape(str(item))}
+                    </span>
+                    """
+                    for item in missing_required
+                )
+
+            else:
+
+                missing_html = """
+                <div style="
+                    margin-top:10px;
+                    color:#2f7d4a;
+                    font-size:13px;
+                    font-weight:600;
+                ">
+                    ✓ No required skills missing
+                </div>
+                """
+
+            st.html(
+                f"""
+                <div class="card">
+
+                    <div class="hero-eyebrow">
+                        Required
+                    </div>
+
+                    <div style="
+                        font-family:'Playfair Display',serif;
+                        font-size:24px;
+                        color:#171717;
+                        margin-bottom:14px;
+                    ">
+                        Matched skills
+                    </div>
+
+                    <div>
+                        {matched_required_html}
+                    </div>
+
+                    <div style="
+                        color:#777168;
+                        font-size:12px;
+                        margin-top:20px;
+                        margin-bottom:10px;
+                    ">
+                        Missing
+                    </div>
+
+                    <div>
+                        {missing_html}
+                    </div>
+
+                </div>
+                """
+            )
+
+
+        # ----------------------------------------------------
+        # PREFERRED
+        # ----------------------------------------------------
+
+        with skill_right:
+
+            matched_preferred_html = tag_html(
+                candidate["Matched Preferred"]
+            )
+
+            missing_preferred = safe_list(
+                candidate["Missing Preferred"]
+            )
+
+            if missing_preferred:
+
+                missing_html = "".join(
+                    f"""
+                    <span class="pill">
+                        {html.escape(str(item))}
+                    </span>
+                    """
+                    for item in missing_preferred
+                )
+
+            else:
+
+                missing_html = """
+                <div style="
+                    margin-top:10px;
+                    color:#2f7d4a;
+                    font-size:13px;
+                    font-weight:600;
+                ">
+                    ✓ No preferred skills missing
+                </div>
+                """
+
+            st.html(
+                f"""
+                <div class="card">
+
+                    <div class="hero-eyebrow">
+                        Preferred
+                    </div>
+
+                    <div style="
+                        font-family:'Playfair Display',serif;
+                        font-size:24px;
+                        color:#171717;
+                        margin-bottom:14px;
+                    ">
+                        Matched skills
+                    </div>
+
+                    <div>
+                        {matched_preferred_html}
+                    </div>
+
+                    <div style="
+                        color:#777168;
+                        font-size:12px;
+                        margin-top:20px;
+                        margin-bottom:10px;
+                    ">
+                        Missing
+                    </div>
+
+                    <div>
+                        {missing_html}
+                    </div>
+
+                </div>
+                """
+            )
+
+
+        # ----------------------------------------------------
+        # RESUME SKILLS
+        # ----------------------------------------------------
+
+        st.markdown(
+            "<div style='height:18px'></div>",
+            unsafe_allow_html=True,
+        )
+
+        resume_skill_html = tag_html(
+            candidate["Resume Skills"]
+        )
+
+        st.html(
+            f"""
+            <div class="card">
+
+                <div class="hero-eyebrow">
+                    Detected profile
+                </div>
+
+                <div style="
+                    font-family:'Playfair Display',serif;
+                    font-size:24px;
+                    color:#171717;
+                    margin-bottom:15px;
+                ">
+                    Resume skill inventory
+                </div>
+
+                <div>
+                    {resume_skill_html}
+                </div>
+
+            </div>
+            """
+        )
+
+
+    # ========================================================
+    # EXPERIENCE TAB
+    # ========================================================
+
+    with tab2:
+
+        exp_left, exp_right = st.columns(
+            2,
+            gap="large",
+        )
+
+        with exp_left:
+
+            st.html(
+                f"""
+                <div class="card">
+
+                    <div class="hero-eyebrow">
+                        Detected
+                    </div>
+
+                    <div style="
+                        font-family:'Playfair Display',serif;
+                        font-size:52px;
+                        color:#171717;
+                    ">
+                        {candidate["Experience Years"]:.1f}
+                    </div>
+
+                    <div style="
+                        color:#777168;
+                        font-size:13px;
+                    ">
+                        years of experience detected
+                    </div>
+
+                </div>
+                """
+            )
+
+        with exp_right:
+
+            st.html(
+                f"""
+                <div class="card-dark">
+
+                    <div style="
+                        text-transform:uppercase;
+                        letter-spacing:.14em;
+                        font-size:10px;
+                        color:#aaa39a !important;
+                        font-weight:700;
+                    ">
+                        Experience signal
+                    </div>
+
+                    <div style="
+                        font-family:'Playfair Display',serif;
+                        font-size:44px;
+                        margin-top:8px;
+                    ">
+                        {format_percent(
+                            candidate["Experience Score"]
+                        )}
+                    </div>
+
+                    <div style="
+                        color:#c9c2b8 !important;
+                        font-size:12px;
+                    ">
+                        contribution score
+                    </div>
+
+                </div>
+                """
+            )
+
+
+    # ========================================================
+    # RESUME TEXT TAB
+    # ========================================================
+
+    with tab3:
+
+        st.text_area(
+            "Extracted resume content",
+            value=candidate["Resume Text"],
+            height=400,
+            disabled=True,
+        )
+
+
+    # ========================================================
+    # EXPORT
+    # ========================================================
+
+    st.markdown(
+        "<div style='height:30px'></div>",
+        unsafe_allow_html=True,
+    )
+
+    export_left, export_right = st.columns(
+        [1, 1],
+        gap="large",
+    )
+
+    with export_left:
+
+        csv_bytes = report_df.to_csv(
+            index=False
+        ).encode("utf-8")
+
+        st.download_button(
+            "↓  Download HR analysis CSV",
+            data=csv_bytes,
+            file_name="resumatch_hr_report.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    with export_right:
+
+        if st.button(
+            "↺  Start a new analysis",
+            use_container_width=True,
+        ):
+
+            st.session_state.results = None
+            st.session_state.analysis_done = False
+            st.session_state.job_text = ""
+
+            st.rerun()
+
+
+    # ========================================================
+    # RESPONSIBLE USE
+    # ========================================================
+
+    st.markdown(
+        "<div style='height:25px'></div>",
+        unsafe_allow_html=True,
+    )
+
+    st.html(
+        """
+        <div class="card">
+
+            <div class="hero-eyebrow">
+                Responsible workflow
+            </div>
+
+            <div style="
+                font-family:'Playfair Display',serif;
+                font-size:24px;
+                color:#171717;
+                margin-bottom:8px;
+            ">
+                Keep a human in the loop.
+            </div>
+
+            <div style="
+                color:#777168;
+                font-size:13px;
+                line-height:1.7;
+            ">
+                Resume ranking is a decision-support mechanism,
+                not an automated hiring decision. Scores can
+                reflect limitations in resume wording, extracted
+                text, skill dictionaries and the selected job
+                description. Recruiters should review the
+                underlying evidence and apply consistent human
+                judgment.
+            </div>
+
+        </div>
+        """
+    )
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.html(
+    '''<div class="footer">
+
+    ResuMatch AI · AI-Powered Resume Ranker<br>
+
+    Built with Python · Streamlit · spaCy · scikit-learn · PyMuPDF
+
+    <br><br>
+
+    Candidate ranking should support — not replace —
+    human review.
+
+</div>'''
+)
