@@ -45,14 +45,14 @@ Sample resumes: data/sample_resumes/
 
 Python, Streamlit, spaCy, scikit-learn, PyMuPDF, pandas, NumPy, ReportLab, openpyxl, Plotly, Flask.
 
-## Local Setup
+## Live Demo`r`n`r`nhttps://resumatch-ai12.streamlit.app/`r`n`r`n## Local Setup
 
     python -m venv .venv
     .\.venv\Scripts\Activate.ps1
     pip install -r requirements.txt
     streamlit run .\streamlit_app.py
 
-Open http://localhost:8501
+Live Demo: https://resumatch-ai12.streamlit.app/
 
 ## Testing
 
@@ -77,3 +77,4 @@ Semantic embeddings, improved skill aliases, section-aware parsing, stronger exp
 ## License
 
 This project is currently intended as an internship and portfolio project.
+
