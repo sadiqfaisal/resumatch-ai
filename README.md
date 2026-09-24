@@ -45,7 +45,7 @@ Sample resumes: data/sample_resumes/
 
 Python, Streamlit, spaCy, scikit-learn, PyMuPDF, pandas, NumPy, ReportLab, openpyxl, Plotly, Flask.
 
-## Live Demo`r`n`r`nhttps://resumatch-ai12.streamlit.app/`r`n`r`n## Local Setup
+## Live Demo
 
     python -m venv .venv
     .\.venv\Scripts\Activate.ps1
